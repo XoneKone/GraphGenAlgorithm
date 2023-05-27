@@ -1,19 +1,27 @@
+def check_adj(edge_1, edge_2):
+    if (edge_1[0] == edge_2[0] or edge_1[1] == edge_2[0]
+            or edge_1[0] == edge_2[1] or edge_1[1] == edge_2[1]):
+        return True
+    return False
+
+
 class Graph:
 
     def __init__(self, matrix: list[list[int]] = None):
         self._edges = None
         self._vertices = None
-        self._matrix = None
+        self._vertex_adj_matrix = None
+        self._edge_adj_matrix = None
         self._edges_dict = None
         self.set_values(matrix)
 
-    def set_values(self, matrix):
+    def set_values(self, vertex_adj_matrix):
         self._vertices = []
         self._edges = []
         self._edges_dict = {}
-        self._matrix = matrix
+        self._vertex_adj_matrix = vertex_adj_matrix
 
-        for v, values in enumerate(matrix):
+        for v, values in enumerate(vertex_adj_matrix):
             if v not in self._vertices:
                 self._vertices.append(v)
             for u, value in enumerate(values):
@@ -21,24 +29,19 @@ class Graph:
                     self._edges.append([v, u])
 
         self._edges_dict = dict(zip([i for i in range(len(self.edges))], self.edges))
+        self._edge_adj_matrix = self.create_edge_adj_matrix(self.number_of_edges)
 
     def recreate(self, matrix):
         self.set_values(matrix)
 
-    def check_independence(self, probable):
-        if ([u, v] in self.edges
-                or [v, u] in self.edges):
-            return True
-        return False
+    def create_edge_adj_matrix(self, number_of_edges):
+        adj = [[0] * number_of_edges for _ in range(number_of_edges)]
 
-    def count_independent_edges(self, edges):
-        count = 0
-        tmp = set()
-        for edge in edges:
-            if self.is_edge(*edge) and set(edge) not in tmp:
-                tmp.add(*edge)
-                count += 1
-        return count
+        for i in range(number_of_edges):
+            for j in range(i, number_of_edges):
+                if check_adj(self.edges_dict[i], self.edges_dict[j]) and i != j:
+                    adj[i][j] = adj[j][i] = 1
+        return adj
 
     def to_gf(self):
         pass
@@ -56,8 +59,12 @@ class Graph:
         return self._edges_dict
 
     @property
-    def matrix(self):
-        return self._matrix
+    def vertex_adj_matrix(self):
+        return self._vertex_adj_matrix
+
+    @property
+    def edge_adj_matrix(self):
+        return self._edge_adj_matrix
 
     @property
     def number_of_edges(self):
@@ -90,8 +97,5 @@ if __name__ == '__main__':
     print(g.vertices)
     print(g.edges)
     print(g.edges_dict)
+    print(g.edge_adj_matrix)
 
-    g.recreate(mp2)
-
-    print(g.vertices)
-    print(g.edges)
