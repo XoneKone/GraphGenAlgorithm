@@ -1,3 +1,4 @@
+import random
 from random import randrange, uniform, randint
 
 from graphs import Graph
@@ -5,12 +6,12 @@ from graphs import Graph
 
 class DNA:
 
-    def __init__(self, length: int, dna=None):
+    def __init__(self, length: int = None, dna=None):
         self._length = None
         self._genes = None
         self._fitness = 0
-        self.genes = dna
         self.length = length
+        self.genes = dna
 
     @property
     def length(self):
@@ -41,27 +42,34 @@ class DNA:
         if value is not None:
             self._fitness = value
 
+    def __repr__(self):
+        return "-".join(map(str, self.genes))
 
-class PopulationInfo:
-    def __init__(self):
-        self.generation_count = 0
-        self.avg_fitness = None
-        self.best_fitness = None
-        self.fittest = None
+    def __eq__(self, other):
+        if isinstance(other, DNA):
+            return self.genes == other.genes
+        return False
+
+    def __hash__(self):
+        return hash(tuple(self.genes))
 
 
 class GA:
-    MIN_VALUE = -2147483647
+    MAX_VALUE = 2147483647
 
     def __init__(self, graph: Graph = None):
+        self._generation_count = None
         self._graph = None
         self._population = []
+
+        self._avg_fitness = None
+        self._best_fitness = None
+        self._fittest = None
 
         self.graph = graph
         self.population_size = randrange(20, 30)
         self.crossing_over_rate = uniform(0.8, 0.95)
         self.mutation_rate = uniform(0.5, 1.0)
-        self.population_info = PopulationInfo()
 
     @property
     def population(self):
@@ -70,6 +78,8 @@ class GA:
     @population.setter
     def population(self, value):
         if value is not None:
+            if len(self._population) != 0:
+                self._population.clear()
             self._population = value
 
     @property
@@ -81,23 +91,63 @@ class GA:
         if value is not None:
             self._graph = value
 
+    @property
+    def best_fitness(self):
+        return self._best_fitness
+
+    @best_fitness.setter
+    def best_fitness(self, value):
+        if value is not None:
+            self._best_fitness = value
+
+    @property
+    def avg_fitness(self):
+        return self._avg_fitness
+
+    @avg_fitness.setter
+    def avg_fitness(self, value):
+        if value is not None:
+            self._avg_fitness = value
+
+    @property
+    def fittest(self):
+        return self._fittest
+
+    @fittest.setter
+    def fittest(self, value):
+        if value is not None:
+            self._fittest = value
+
+    @property
+    def generation_count(self):
+        return self._generation_count
+
+    @generation_count.setter
+    def generation_count(self, value):
+        if value is not None:
+            self._generation_count = value
+
     def step(self):
         pass
 
     def initialize_population(self):
         for _ in range(self.population_size):
             self._population.append(DNA(self.graph.number_of_edges))
-            for dna in self._population:
-                dna.fitness = self.evaluate_fitness(dna)
+        for dna in self._population:
+            dna.fitness = self.evaluate_fitness(dna)
+        self.generation_count = 1
+        self.fittest = self.get_fittest()
+        self.best_fitness = self.fittest[0].fitness
 
     def evaluate_fitness(self, dna):
         fitness = 0
         for i in range(len(dna.genes)):
-            for j in range(i + 1, len(dna.genes)):
-                if (((dna.genes[i] != 0 and dna.genes[j] != 0) and self.graph.edge_adj_matrix[i][j] == 1)
-                        or (dna.genes[i] == 0)):
-                    fitness += 1
-
+            if dna.genes[i] == 1:
+                for j in range(i + 1, len(dna.genes)):
+                    if dna.genes[j] == 1 and self.graph.edge_adj_matrix[i][j] == 1:
+                        return self.MAX_VALUE
+            else:
+                fitness += 1
         return fitness
 
     def crossover(self, parent1: DNA, parent2: DNA):
@@ -113,13 +163,10 @@ class GA:
             child1.genes[i] = parent2.genes[i]
             child2.genes[i] = parent1.genes[i]
 
-        if self.evaluate_fitness(child1) < self.evaluate_fitness(child2):
-            return child1
-
-        return child2
+        return child1, child2
 
     def mutation(self, dna):
-        mutated_dna = DNA(dna)
+        mutated_dna = DNA(dna.length, dna)
         check = uniform(0, 1)
         if check <= self.mutation_rate:
             position = randint(0, len(mutated_dna.genes) - 1)
@@ -130,14 +177,14 @@ class GA:
         return mutated_dna
 
     def mutation2(self, dna):
-        mutated_dna = DNA(dna)
-        for position in range(mutated_dna.length):
-            check = uniform(0, 1)
-            if check <= self.mutation_rate:
-                if mutated_dna.genes[position] == 0:
-                    mutated_dna.genes[position] = 1
-                else:
-                    mutated_dna.genes[position] = 0
+        mutated_dna = DNA(dna.length, dna)
+        check = uniform(0, 1)
+        position = randrange(0, mutated_dna.length)
+        if check <= self.mutation_rate:
+            if mutated_dna.genes[position] == 0:
+                mutated_dna.genes[position] = 1
+            else:
+                mutated_dna.genes[position] = 0
         return mutated_dna
 
     def choose_parents(self):
@@ -166,25 +213,88 @@ class GA:
     def next_generation(self):
         population_without_gen_operators = self.roulette_wheel_selection()
         new_population = []
-        for _ in population_without_gen_operators:
-            parents = self.choose_parents()
-            child = self.crossover(parents[0], parents[1])
-            child = self.mutation2(child)
-            child.fitness = self.evaluate_fitness(child)
-            new_population.append(child)
-        self.population = new_population
-        self.population_info.generation_count += 1
-        self.population_info.avg_fitness =
+        random.shuffle(population_without_gen_operators)
+
+        for i in range(0, self.population_size - 1, 2):
+            child1, child2 = self.crossover(population_without_gen_operators[i],
+                                            population_without_gen_operators[i + 1])
+            new_population.append(child1)
+            new_population.append(child2)
+        if len(new_population) < self.population_size:
+            new_population.append(population_without_gen_operators[-1])
+
+        self.population.clear()
+
+        for dna in new_population:
+            dna = self.mutation2(dna)
+            dna.fitness = self.evaluate_fitness(dna)
+            self.population.append(dna)
+
+        self.generation_count += 1
+        self.avg_fitness = self.calculate_avg_fitness()
+        self.fittest = self.get_fittest()
+        self.best_fitness = self.fittest[0].fitness
 
     def calculate_avg_fitness(self):
-        avg_fitness = None
-        #todo: Доделать)
+        return sum([dna.fitness for dna in self.population if dna.fitness != self.MAX_VALUE]) / self.population_size
+
+    def get_fittest(self):
+        min_fitness = min([i.fitness for i in self.population])
+        fittests = set([i for i in self.population if i.fitness == min_fitness])
+        return list(fittests)
 
     def get_population_info(self):
+        return self.generation_count, self.fittest
 
-        return
-
-    def start(self, graph: list[list[int]]):
+    def start(self):
         self.initialize_population()
-        while self.population_info.best_fitness != 0 and self.population_info.generation_count != 1000:
-            self.population_info.generation_count += 1
+        while self.best_fitness != 0 and self.generation_count != 1001:
+            if self.generation_count % 10 == 0:
+                print(
+                    f"Номер поколения: {self.generation_count},\n"
+                    f"Наилучшие особи: {self.fittest},\n"
+                    f"Наибольшее паросочетание: {[self.graph.to_edges(variant) for variant in self.fittest]}\n"
+                    f"Наилучшая приспособленность: {self.best_fitness} \n"
+                    f"Средняя приспособленность поколения: {self.avg_fitness}")
+                print("*" * 50 + "\n")
+            self.next_generation()
+        else:
+            print(
+                f"Номер поколения: {self.generation_count},\n"
+                f"Наилучшие особи: {self.fittest},\n"
+                f"Наибольшее паросочетание: {[self.graph.to_edges(variant) for variant in self.fittest]}\n"
+                f"Наилучшая приспособленность: {self.best_fitness} \n"
+                f"Средняя приспособленность поколения: {self.avg_fitness}")
+            print("*" * 50 + "\n")
+
+
+if __name__ == '__main__':
+    mp = [
+        [0, 1, 1, 1, 0],
+        [1, 0, 1, 0, 1],
+        [1, 1, 0, 1, 0],
+        [1, 0, 1, 0, 1],
+        [0, 1, 0, 1, 0],
+    ]
+    mp2 = [
+        [0, 1, 1, 1, 0],
+        [1, 0, 1, 0, 1],
+        [1, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+    ]
+    mp3 = [
+        [0, 0, 0, 0, 1, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 1, 0, 1, 0],
+        [1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 1, 1, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 0, 0],
+        [1, 0, 1, 1, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0],
+    ]
+    # {0: [0, 1], 1: [0, 2], 2: [0, 3], 3: [1, 2], 4: [1, 4], 5: [2, 3], 6: [3, 4]}
+    g = Graph(matrix=mp3)
+    ga = GA(graph=g)
+    ga.start()

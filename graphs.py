@@ -43,8 +43,12 @@ class Graph:
                     adj[i][j] = adj[j][i] = 1
         return adj
 
-    def to_gf(self):
-        pass
+    def to_edges(self, dna):
+        edges = []
+        for index, gen in enumerate(dna.genes):
+            if gen == 1:
+                edges.append(self._edges_dict[index])
+        return edges
 
     @property
     def vertices(self):
@@ -98,4 +102,3 @@ if __name__ == '__main__':
     print(g.edges)
     print(g.edges_dict)
     print(g.edge_adj_matrix)
-
