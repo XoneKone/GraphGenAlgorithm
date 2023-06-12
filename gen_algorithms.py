@@ -1,4 +1,5 @@
 import random
+import time
 from random import randrange, uniform, randint
 import numpy as np
 import networkx as nx
@@ -93,6 +94,7 @@ class RecordGA:
 
 
 class GA:
+    UPPER_BOUND = 10000
 
     def __init__(self, graph: Graph):
         self._generation_count = None
@@ -106,7 +108,7 @@ class GA:
         self.graph = graph
         self.records = []
 
-        self.population_size = 800 # randrange(200, 500)
+        self.population_size = 500  # randrange(200, 500)
         self.crossing_over_rate = 0.9  # uniform(0.8, 0.95)
         self.mutation_rate = 0.9  # uniform(0.5, 1.0)
 
@@ -219,13 +221,26 @@ class GA:
 
     def mutation2(self, dna):
         check = uniform(0, 1)
-        position = randrange(0, dna.length)
+        number_of_mutations = randint(1, dna.length)
+        positions = [randrange(0, dna.length) for _ in range(number_of_mutations)]
         if check <= self.mutation_rate:
-            if dna.genes[position] == 0:
-                dna.genes[position] = 1
-            else:
-                dna.genes[position] = 0
+            for position in positions:
+                if dna.genes[position] == 0:
+                    dna.genes[position] = 1
+                else:
+                    dna.genes[position] = 0
         return dna
+
+    def tournament_selection(self):
+        new_population = []
+        for j in range(2):
+            random.shuffle(self.population)
+            for i in range(0, self.population_size - 1, 2):
+                if self.population[i].fitness < self.population[i + 1].fitness:
+                    new_population.append(self.population[i])
+                else:
+                    new_population.append(self.population[i + 1])
+        return new_population
 
     def roulette_wheel_selection(self):
         total_fitness = 0
@@ -247,7 +262,7 @@ class GA:
         return new_population
 
     def next_generation_darvin(self):
-        population_without_gen_operators = self.roulette_wheel_selection()
+        population_without_gen_operators = self.tournament_selection()
         new_population = []
         random.shuffle(population_without_gen_operators)
 
@@ -303,8 +318,91 @@ class GA:
     def start_darvin(self):
         self.initialize_population()
 
-        while self.best_fitness != 0 and self.generation_count != 1001:
+        while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
             self.next_generation_darvin()
+
+    def start_lamark(self):
+        self.initialize_population()
+
+        while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
+            self.next_generation_lamark()
+
+    def lamark_selection(self):
+        new_population = self.population.copy()
+        for dna in new_population:
+            dna = self.mutation2(dna)
+            dna.evaluate_fitness(self.graph)
+
+        for i in range(0, self.population_size - 1, 2):
+            parent_1, parent_2 = self.select_closest_parents_lamark(population=new_population)
+            child1, child2 = self.crossover(parent_1,
+                                            parent_2)
+            new_population.remove(parent_1)
+            new_population.remove(parent_2)
+
+            new_population.append(child1)
+            new_population.append(child2)
+
+        for i in range(0, self.population_size - 1, 2):
+            parent_1, parent_2 = self.select_distant_parents_lamark(population=new_population)
+            child1, child2 = self.crossover(parent_1,
+                                            parent_2)
+            new_population.remove(parent_1)
+            new_population.remove(parent_2)
+
+            new_population.append(child1)
+            new_population.append(child2)
+
+    def select_distant_parents_lamark(self, population):
+        dna_and_distans = dict.fromkeys(population, [0 for _ in range(self.population_size)])
+        
+
+    def select_closest_parents_lamark(self, population):
+        position = randrange(0, self.population_size)
+        parent_1 = population[position]
+        parent_2 = self.search_another_parent(population, parent_1)
+        return parent_1, parent_2
+
+    def search_another_parent(self, population, parent_1):
+        min_dist = DNA.MAX_VALUE
+        parent_2 = None
+        for dna in population:
+            dist = 0
+            for index in range(dna.genes):
+                if dna.genes[index] != parent_1.genes[index]:
+                    dist += 1
+            if min_dist < dist:
+                min_dist = dist
+                parent_2 = dna
+        return parent_2
+
+    def next_generation_lamark(self):
+        population_without_gen_operators = self.tournament_selection()
+        new_population = self.population.copy()
+        for dna in new_population:
+            dna = self.mutation2(dna)
+            dna.evaluate_fitness(self.graph)
+
+        random.shuffle(population_without_gen_operators)
+
+        for i in range(0, self.population_size - 1, 2):
+            child1, child2 = self.crossover(population_without_gen_operators[i],
+                                            population_without_gen_operators[i + 1])
+            new_population.append(child1)
+            new_population.append(child2)
+        if len(new_population) < self.population_size:
+            new_population.append(population_without_gen_operators[-1])
+
+        self._population = new_population
+
+        for dna in self._population:
+            dna = self.mutation2(dna)
+            dna.evaluate_fitness(self.graph)
+
+        self.generation_count += 1
+        self.avg_fitness = self.calculate_avg_fitness()
+        self.fittest, self.best_fitness = self.get_fittests()
+        self.record_statistic()
 
     def show_graphics(self):
         max_fitness = [record.best_fitness for record in self.records]
@@ -391,9 +489,13 @@ if __name__ == '__main__':
     ]
     # {0: [0, 1], 1: [0, 2], 2: [0, 3], 3: [1, 2], 4: [1, 4], 5: [2, 3], 6: [3, 4]}
     g = Graph(matrix=mp3)
-    g2 = Graph(n=13)
+    g2 = Graph(n=10)
+    start = time.time()
     ga = GA(graph=g2)
     ga.start_darvin()
+    end = time.time()
+    print("The time of execution of above program is :",
+          (end - start) * 10 ** 3, "ms")
     ga.show_graphics()
     bests = ga.get_best_info()
     for i in bests:
