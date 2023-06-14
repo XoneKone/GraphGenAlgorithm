@@ -94,7 +94,7 @@ class RecordGA:
 
 
 class GA:
-    UPPER_BOUND = 10000
+    UPPER_BOUND = 1000
 
     def __init__(self, graph: Graph):
         self._generation_count = None
@@ -109,6 +109,7 @@ class GA:
         self.records = []
 
         self.population_size = 500  # randrange(200, 500)
+        self.cloning_rate = 0.2
         self.crossing_over_rate = 0.9  # uniform(0.8, 0.95)
         self.mutation_rate = 0.9  # uniform(0.5, 1.0)
 
@@ -181,6 +182,7 @@ class GA:
             )
 
     def initialize_population(self):
+        self._population.clear()
         for _ in range(self.population_size):
             self._population.append(DNA(self.graph.number_of_edges))
         for dna in self._population:
@@ -321,92 +323,65 @@ class GA:
         while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
             self.next_generation_darvin()
 
-    def start_lamark(self):
+    def start_immune(self):
         self.initialize_population()
 
         while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
-            self.next_generation_lamark()
+            self.next_generation_immune()
 
-    def lamark_selection(self):
-        new_population = self.population.copy()
-        for dna in new_population:
-            dna = self.mutation2(dna)
-            dna.evaluate_fitness(self.graph)
+    # def select_distant_parents_lamark(self, population):
+    #     dna_and_distans = dict.fromkeys(population, [0 for _ in range(self.population_size)])
+    #     # for key, value in dna_and_distans.items():
+    #     #     dna[key]
+    #     #     for dna in population:
+    #     #         dist = 0
+    #     #         for index in range(dna.genes):
+    #     #             if dna.genes[index] != parent_1.genes[index]:
+    #     #                 dist += 1
+    #     #         if min_dist < dist:
+    #     #             min_dist = dist
+    #     #             parent_2 = dna
 
-        for i in range(0, self.population_size - 1, 2):
-            parent_1, parent_2 = self.select_closest_parents_lamark(population=new_population)
-            child1, child2 = self.crossover(parent_1,
-                                            parent_2)
-            new_population.remove(parent_1)
-            new_population.remove(parent_2)
+    # def select_closest_parents_lamark(self, population):
+    #     position = randrange(0, self.population_size)
+    #     parent_1 = population[position]
+    #     parent_2 = self.search_another_parent(population, parent_1)
+    #     return parent_1, parent_2
 
-            new_population.append(child1)
-            new_population.append(child2)
+    # def search_another_parent(self, population, parent_1):
+    #     min_dist = DNA.MAX_VALUE
+    #     parent_2 = None
+    #     for dna in population:
+    #         dist = 0
+    #         for index in range(dna.genes):
+    #             if dna.genes[index] != parent_1.genes[index]:
+    #                 dist += 1
+    #         if min_dist < dist:
+    #             min_dist = dist
+    #             parent_2 = dna
+    #     return parent_2
+    #
 
-        for i in range(0, self.population_size - 1, 2):
-            parent_1, parent_2 = self.select_distant_parents_lamark(population=new_population)
-            child1, child2 = self.crossover(parent_1,
-                                            parent_2)
-            new_population.remove(parent_1)
-            new_population.remove(parent_2)
+    def next_generation_immune(self):
+        numb = round(self.cloning_rate * self.population_size)
+        random.shuffle(self.population)
 
-            new_population.append(child1)
-            new_population.append(child2)
+        clones = self.population[:numb]
+        for clone in clones:
+            clone = self.mutation2(clone)
+            clone.evaluate_fitness(self.graph)
 
-    def select_distant_parents_lamark(self, population):
-        dna_and_distans = dict.fromkeys(population, [0 for _ in range(self.population_size)])
-        # for key, value in dna_and_distans.items():
-        #     dna[key]
-        #     for dna in population:
-        #         dist = 0
-        #         for index in range(dna.genes):
-        #             if dna.genes[index] != parent_1.genes[index]:
-        #                 dist += 1
-        #         if min_dist < dist:
-        #             min_dist = dist
-        #             parent_2 = dna
+        new_population = []
+        for clone, parent in zip(clones, self.population[:numb]):
+            if clone.fitness <= parent.fitness:
+                new_population.append(clone)
+            else:
+                new_population.append(parent)
 
-    def select_closest_parents_lamark(self, population):
-        position = randrange(0, self.population_size)
-        parent_1 = population[position]
-        parent_2 = self.search_another_parent(population, parent_1)
-        return parent_1, parent_2
-
-    def search_another_parent(self, population, parent_1):
-        min_dist = DNA.MAX_VALUE
-        parent_2 = None
-        for dna in population:
-            dist = 0
-            for index in range(dna.genes):
-                if dna.genes[index] != parent_1.genes[index]:
-                    dist += 1
-            if min_dist < dist:
-                min_dist = dist
-                parent_2 = dna
-        return parent_2
-
-    def next_generation_lamark(self):
-        population_without_gen_operators = self.tournament_selection()
-        new_population = self.population.copy()
-        for dna in new_population:
-            dna = self.mutation2(dna)
-            dna.evaluate_fitness(self.graph)
-
-        random.shuffle(population_without_gen_operators)
-
-        for i in range(0, self.population_size - 1, 2):
-            child1, child2 = self.crossover(population_without_gen_operators[i],
-                                            population_without_gen_operators[i + 1])
-            new_population.append(child1)
-            new_population.append(child2)
-        if len(new_population) < self.population_size:
-            new_population.append(population_without_gen_operators[-1])
+        for i in self.population[numb:]:
+            new_population.append(i)
 
         self._population = new_population
-
-        for dna in self._population:
-            dna = self.mutation2(dna)
-            dna.evaluate_fitness(self.graph)
 
         self.generation_count += 1
         self.avg_fitness = self.calculate_avg_fitness()
@@ -435,38 +410,6 @@ class GA:
             if edge in pair_edges or (edge[1], edge[0]) in pair_edges:
                 edge_color_list[i] = 'red'
         nx.draw(G, with_labels=True, edge_color=edge_color_list)
-        plt.show()
-
-    def simple_update(self, num, layout, G, ax, bests):
-        ax.clear()
-        # Draw the graph with random node colors
-        edge_color_list = ["grey"] * len(G.edges)
-        for best in bests:
-            pair_edges = best.best_edges
-            for i, edge in enumerate(G.edges()):
-                if edge in pair_edges or (edge[1], edge[0]) in pair_edges:
-                    edge_color_list[i] = 'red'
-            nx.draw(G, pos=layout, with_labels=True, edge_color=edge_color_list, ax=ax)
-
-        # Set the title
-        ax.set_title("Frame {}".format(num))
-
-    def simple_animation(self):
-        # Build plot
-        fig, ax = plt.subplots(figsize=(6, 4))
-
-        # Create a graph and layout
-        G = nx.Graph()
-        G.add_edges_from(self.graph.edges)
-        bests = self.get_best_info()
-        if bests is None:
-            return "Решение не найдено!"
-        layout = nx.spring_layout(G)
-
-        ani = animation.FuncAnimation(fig, self.simple_update, frames=20,
-                                      fargs=(layout, G, ax, bests))
-        ani.save('animation_2.gif', writer='pillow')
-
         plt.show()
 
 
@@ -501,7 +444,24 @@ if __name__ == '__main__':
     g2 = Graph(n=10)
     start = time.time()
     ga = GA(graph=g2)
+    print("Генетический алгоритм")
     ga.start_darvin()
+    end = time.time()
+    print("The time of execution of above program is :",
+          (end - start) * 10 ** 3, "ms")
+    ga.show_graphics()
+    bests = ga.get_best_info()
+    for i in bests:
+        print(i)
+    ga.show_graph()
+
+    del ga
+
+    ga = GA(graph=g2)
+    print("*" * 50)
+    print("Имунный алгоритм")
+    start = time.time()
+    ga.start_immune()
     end = time.time()
     print("The time of execution of above program is :",
           (end - start) * 10 ** 3, "ms")
