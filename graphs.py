@@ -100,35 +100,3 @@ class Graph:
             graph[i][i] = 0
 
         self.set_values(graph)
-
-
-if __name__ == '__main__':
-    mp = [
-        [0, 1, 1, 1, 0],
-        [1, 0, 1, 0, 1],
-        [1, 1, 0, 1, 0],
-        [1, 0, 1, 0, 1],
-        [0, 1, 0, 1, 0],
-    ]
-
-    mp2 = [
-        [0, 1, 1, 1, 0],
-        [1, 0, 1, 0, 1],
-        [1, 1, 0, 0, 0],
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-    ]
-
-    g = Graph(matrix=mp)
-    g2 = Graph(n=50)
-
-    print(g2.vertex_adj_matrix)
-    with open('graph.txt', 'w') as file:
-        for vertex in g2.vertex_adj_matrix:
-            file.write(str(vertex))
-            file.write(",\n")
-
-    # print(g2.vertices)
-    # print(g2.edges)
-    # print(g2.edges_dict)
-    # print(g2.edge_adj_matrix)

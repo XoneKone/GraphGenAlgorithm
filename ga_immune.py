@@ -3,13 +3,17 @@ import time
 from random import randrange, uniform, randint
 import numpy as np
 import networkx as nx
-from matplotlib import animation
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from graphs import Graph
 
 
 class DNA:
+    """
+        Класс, представляющий решение задачи нахождения наибольшего паросочетания.
+        Решение представляется двоичной последовательностью длины n - количество ребер в исходной графе.
+    """
     MAX_VALUE = 2147483647
 
     def __init__(self, length: int = None, dna=None):
@@ -49,7 +53,13 @@ class DNA:
         if dna is not None:
             self._genes = dna.genes
         else:
-            self._genes = [randint(0, 1) for _ in range(self.length)]
+            if self.length < 10:
+                self._genes = [randint(0, 1) for _ in range(self.length)]
+            else:
+                self._genes = [0 for _ in range(self.length)]
+                positions = [randrange(0, self.length) for _ in range(randint(1, 3))]
+                for position in positions:
+                    self._genes[position] = 1
 
     @property
     def fitness(self):
@@ -72,7 +82,11 @@ class DNA:
         return hash(tuple(self.genes))
 
 
-class RecordGA:
+class Record:
+    """
+        Класс, представляющий собой информацию о поколении
+    """
+
     def __init__(self,
                  number_of_generations: int,
                  fittest: list[DNA],
@@ -93,7 +107,10 @@ class RecordGA:
                    + f"Наибольшее паросочетание: {self.best_edges}\n")
 
 
-class GA:
+class Launcher:
+    """
+        Класс для запуска и настройки генетического и иммунного алгоритма
+    """
     UPPER_BOUND = 1000
 
     def __init__(self, graph: Graph):
@@ -170,9 +187,13 @@ class GA:
             self._generation_count = value
 
     def record_statistic(self):
+        """
+        Записывает информацию о поколении в массив records
+        :return: None
+        """
         if self.best_fitness != DNA.MAX_VALUE:
             self.records.append(
-                RecordGA(
+                Record(
                     self.generation_count,
                     self.fittest,
                     self.best_fitness,
@@ -182,7 +203,14 @@ class GA:
             )
 
     def initialize_population(self):
+        """
+        Инициализация поколения. Популяция заполняется случайными решениями.
+        :return: None
+        """
         self._population.clear()
+        self.records.clear()
+        if self.graph.number_of_vertices > 11:
+            self.UPPER_BOUND = 2000
         for _ in range(self.population_size):
             self._population.append(DNA(self.graph.number_of_edges))
         for dna in self._population:
@@ -193,6 +221,12 @@ class GA:
         self.record_statistic()
 
     def crossover(self, parent1: DNA, parent2: DNA):
+        """
+        Операция одноточечного кроссовера. Вероятность кроссовера определяется параметром crossing_over_rate.
+        :param parent1: Первый родитель
+        :param parent2: Второй родитель
+        :return: child1 child2 || parent1 parent2
+        """
         check = uniform(0, 1)
         if check <= self.crossing_over_rate:
             n = parent1.length
@@ -212,6 +246,11 @@ class GA:
             return parent1, parent2
 
     def mutation(self, dna):
+        """
+        Операция мутации. С вероятностью mutation_rate мутируют все гены.
+        :param dna: Решение
+        :return: mutated_dna
+        """
         check = uniform(0, 1)
         if check <= self.mutation_rate:
             for position in range(len(dna.genes)):
@@ -222,6 +261,11 @@ class GA:
         return dna
 
     def mutation2(self, dna):
+        """
+        Операция многоточечной мутации. С вероятностью mutation_rate мутируют от 1 до n генов (n-длина решения).
+        :param dna: Решение
+        :return: mutated_dna
+        """
         check = uniform(0, 1)
         number_of_mutations = randint(1, dna.length)
         positions = [randrange(0, dna.length) for _ in range(number_of_mutations)]
@@ -234,6 +278,10 @@ class GA:
         return dna
 
     def tournament_selection(self):
+        """
+        Турнирная выборка (селекция). В новом поколении только сильнейшие.
+        :return:
+        """
         new_population = []
         for j in range(2):
             random.shuffle(self.population)
@@ -245,6 +293,10 @@ class GA:
         return new_population
 
     def roulette_wheel_selection(self):
+        """
+        Выборка методом рулетки. Выбор определяется вероятностью.
+        :return:
+        """
         total_fitness = 0
         for dna in self.population:
             total_fitness += 1 / (1 + dna.fitness)
@@ -264,6 +316,10 @@ class GA:
         return new_population
 
     def next_generation_darvin(self):
+        """
+        Операция создания следующего поколения в генетическом алгоритме по модели Дарвина.
+        :return: None
+        """
         population_without_gen_operators = self.tournament_selection()
         new_population = []
         random.shuffle(population_without_gen_operators)
@@ -288,15 +344,27 @@ class GA:
         self.record_statistic()
 
     def calculate_avg_fitness(self):
+        """
+        Функция считает среднее значение функции приспособленности популяции. Считаются только решения задачи.
+        :return: Среднее значение функции приспособленности популяции
+        """
         return sum(
             [dna.fitness for dna in self.population if dna.fitness != DNA.MAX_VALUE]) / self.population_size
 
     def get_fittests(self):
+        """
+        Находит и возвращает лучшие решения в поколении и наилучшее значение функции приспособленности.
+        :return: [Лучшие решения в поколении], Наилучшее значение функции приспособленности
+        """
         min_fitness = min([ind.fitness for ind in self.population])
         fittests = set([ind for ind in self.population if ind.fitness == min_fitness])
         return list(fittests), min_fitness
 
     def get_best_info(self):
+        """
+        Выводит наилучшие решения за всю работу алгоритма.
+        :return:
+        """
         if self.records:
             min_value = min([record.best_fitness for record in self.records])
             bests_decisions = [record for record in self.records if record.best_fitness == min_value]
@@ -307,6 +375,11 @@ class GA:
             return None
 
     def to_file(self, path):
+        """
+        Запись в файл информации о всех поколениях и их лучших решениях.
+        :param path: Название или путь к файлу
+        :return:
+        """
         with open(path, 'w', encoding="UTF-8") as file:
             for record in self.records:
                 file.write(
@@ -318,51 +391,30 @@ class GA:
             file.write("*" * 50 + "\n")
 
     def start_darvin(self):
+        """
+        Функция старта генетического алгоритма по модели Дарвина
+        :return: None
+        """
         self.initialize_population()
 
         while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
             self.next_generation_darvin()
 
     def start_immune(self):
+        """
+         Функция старта иммунного алгоритма
+         :return: None
+         """
         self.initialize_population()
 
         while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
             self.next_generation_immune()
 
-    # def select_distant_parents_lamark(self, population):
-    #     dna_and_distans = dict.fromkeys(population, [0 for _ in range(self.population_size)])
-    #     # for key, value in dna_and_distans.items():
-    #     #     dna[key]
-    #     #     for dna in population:
-    #     #         dist = 0
-    #     #         for index in range(dna.genes):
-    #     #             if dna.genes[index] != parent_1.genes[index]:
-    #     #                 dist += 1
-    #     #         if min_dist < dist:
-    #     #             min_dist = dist
-    #     #             parent_2 = dna
-
-    # def select_closest_parents_lamark(self, population):
-    #     position = randrange(0, self.population_size)
-    #     parent_1 = population[position]
-    #     parent_2 = self.search_another_parent(population, parent_1)
-    #     return parent_1, parent_2
-
-    # def search_another_parent(self, population, parent_1):
-    #     min_dist = DNA.MAX_VALUE
-    #     parent_2 = None
-    #     for dna in population:
-    #         dist = 0
-    #         for index in range(dna.genes):
-    #             if dna.genes[index] != parent_1.genes[index]:
-    #                 dist += 1
-    #         if min_dist < dist:
-    #             min_dist = dist
-    #             parent_2 = dna
-    #     return parent_2
-    #
-
     def next_generation_immune(self):
+        """
+        Функция создания следующего поколения для иммунного алгоритма.
+        :return: None
+        """
         numb = round(self.cloning_rate * self.population_size)
         random.shuffle(self.population)
 
@@ -388,85 +440,107 @@ class GA:
         self.fittest, self.best_fitness = self.get_fittests()
         self.record_statistic()
 
-    def show_graphics(self):
+    def save_graphic(self, title: str, path: str):
+        """
+        Функция показывает Зависимость максимальной и средней приспособленности от поколения
+        :param path: Путь до файла
+        :param title: Название графика
+        :return: None
+        """
         max_fitness = [record.best_fitness for record in self.records]
         avg_fitness = [record.avg_fitness for record in self.records]
-        plt.plot(max_fitness, color="red")
-        plt.plot(avg_fitness, color="green")
+        plt.clf()
+        plt.plot(max_fitness, color="red", label="Max")
+        plt.plot(avg_fitness, color="green", label="Avg")
         plt.xlabel("Поколение")
         plt.ylabel("Макс/средняя приспособленность")
-        plt.title('Зависимость максимальной и средней приспособленности от поколения')
-        plt.show()
+        plt.title(f'{title}\nЗависимость максимальной и средней приспособленности от поколения')
+        plt.legend(loc='lower left')
+        plt.savefig(path)
 
-    def show_graph(self):
-        bests = self.get_best_info()
-        if bests is None:
-            return "Решение не найдено!"
+    def save_matching_graph(self, title: str, matching: list, path: str):
+        """
+        Функция рисующая граф и наибольшее паросочетание
+        :param matching: Ребра паросочетания
+        :param title: Название
+        :return:
+        """
         G = nx.Graph()
         G.add_edges_from(self.graph.edges)
-        pair_edges = bests[0].best_edges[0]
+        plt.clf()
         edge_color_list = ["grey"] * len(G.edges)
         for i, edge in enumerate(G.edges()):
-            if edge in pair_edges or (edge[1], edge[0]) in pair_edges:
+            if edge in matching or (edge[1], edge[0]) in matching:
                 edge_color_list[i] = 'red'
-        nx.draw(G, with_labels=True, edge_color=edge_color_list)
-        plt.show()
+        nx.draw_circular(G, with_labels=True, edge_color=edge_color_list)
+        plt.title(title)
+        plt.savefig(path)
+
+
+def save(path: str):
+    pass
+
+
+def main():
+    path_to_graphics = "resources/graphics/"
+    path_to_graphs = "resources/graphs/"
+    ga_title = "Генетический алгоритм"
+    immune_title = "Иммунный алгоритм"
+    ga_time = []
+    immune_time = []
+    for number_of_vertex in tqdm(range(5, 31)):
+        graph = Graph(n=number_of_vertex)
+        launcher = Launcher(graph=graph)
+
+        # измерение времени работы генетического алгоритма
+        start = time.perf_counter()
+        launcher.start_darvin()
+        end = time.perf_counter()
+        ga_time.append(end - start)
+        # отображение графика и сохранение
+        launcher.save_graphic(ga_title,
+                              path_to_graphics + "ga/max_avg_graphic_" + "vertex_" + str(number_of_vertex) + ".jpg")
+
+        # Находим все лучшие решения и отображаем и сохраняем
+        bests = launcher.get_best_info()
+        if bests:
+            for best in bests:
+                for index, pair_edges in enumerate(best.best_edges):
+                    launcher.save_matching_graph(ga_title, pair_edges,
+                                                 path_to_graphs + f"ga/vertex_" + str(
+                                                     number_of_vertex) + f"_matching_{index}_" + ".jpg")
+        else:
+            print("NOT FOUND GEN " + str(number_of_vertex))
+
+        # измерение времени работы иммунного алгоритма
+        start = time.perf_counter()
+        launcher.start_immune()
+        end = time.perf_counter()
+        immune_time.append(end - start)
+
+        launcher.save_graphic(immune_title,
+                              path_to_graphics + "immune/max_avg_graphic_" + "vertex_" + str(number_of_vertex) + ".jpg")
+
+        # Находим все лучшие решения и отображаем и сохраняем
+        bests = launcher.get_best_info()
+        if bests:
+            for best in bests:
+                for index, pair_edges in enumerate(best.best_edges):
+                    launcher.save_matching_graph(immune_title, pair_edges,
+                                                 path_to_graphs + f"immune/vertex_" + str(
+                                                     number_of_vertex) + f"_matching_{index}_" + ".jpg")
+        else:
+            print("NOT FOUND IMMUNE " + str(number_of_vertex))
+
+    plt.clf()
+    plt.title("График зависимости скорости работы от количества вершин")
+    plt.plot(ga_time, color="red", label="GA")
+    plt.plot(immune_time, color="blue", label="Immune")
+    plt.xlabel("Количество вершин")
+    plt.ylabel("Время решения (с)")
+    plt.legend(loc='lower left')
+    plt.savefig(path_to_graphics + "time_graphic.jpg")
 
 
 if __name__ == '__main__':
-    mp = [
-        [0, 1, 1, 1, 0],
-        [1, 0, 1, 0, 1],
-        [1, 1, 0, 1, 0],
-        [1, 0, 1, 0, 1],
-        [0, 1, 0, 1, 0],
-    ]
-    mp2 = [
-        [0, 1, 1, 1, 0],
-        [1, 0, 1, 0, 1],
-        [1, 1, 0, 0, 0],
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-    ]
-    mp3 = [
-        [0, 0, 0, 0, 1, 1, 0, 1, 1],
-        [0, 0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 1, 1, 0],
-        [0, 0, 0, 0, 0, 1, 0, 1, 0],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 1, 1, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0, 0],
-        [1, 0, 1, 1, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0],
-    ]
-    # {0: [0, 1], 1: [0, 2], 2: [0, 3], 3: [1, 2], 4: [1, 4], 5: [2, 3], 6: [3, 4]}
-    g = Graph(matrix=mp3)
-    g2 = Graph(n=10)
-    start = time.time()
-    ga = GA(graph=g2)
-    print("Генетический алгоритм")
-    ga.start_darvin()
-    end = time.time()
-    print("The time of execution of above program is :",
-          (end - start) * 10 ** 3, "ms")
-    ga.show_graphics()
-    bests = ga.get_best_info()
-    for i in bests:
-        print(i)
-    ga.show_graph()
-
-    del ga
-
-    ga = GA(graph=g2)
-    print("*" * 50)
-    print("Имунный алгоритм")
-    start = time.time()
-    ga.start_immune()
-    end = time.time()
-    print("The time of execution of above program is :",
-          (end - start) * 10 ** 3, "ms")
-    ga.show_graphics()
-    bests = ga.get_best_info()
-    for i in bests:
-        print(i)
-    ga.show_graph()
+    main()
