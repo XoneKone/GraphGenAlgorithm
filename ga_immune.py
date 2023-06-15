@@ -125,10 +125,10 @@ class Launcher:
         self.graph = graph
         self.records = []
 
-        self.population_size = 500  # randrange(200, 500)
+        self.population_size = 1000  # randrange(200, 500)
         self.cloning_rate = 0.2
         self.crossing_over_rate = 0.9  # uniform(0.8, 0.95)
-        self.mutation_rate = 0.9  # uniform(0.5, 1.0)
+        self.mutation_rate = 0.4  # uniform(0.5, 1.0)
 
     @property
     def population(self):
@@ -209,8 +209,6 @@ class Launcher:
         """
         self._population.clear()
         self.records.clear()
-        if self.graph.number_of_vertices > 11:
-            self.UPPER_BOUND = 2000
         for _ in range(self.population_size):
             self._population.append(DNA(self.graph.number_of_edges))
         for dna in self._population:
@@ -320,9 +318,9 @@ class Launcher:
         Операция создания следующего поколения в генетическом алгоритме по модели Дарвина.
         :return: None
         """
-        population_without_gen_operators = self.tournament_selection()
+        population_without_gen_operators = self.roulette_wheel_selection()
         new_population = []
-        random.shuffle(population_without_gen_operators)
+        #random.shuffle(population_without_gen_operators)
 
         for i in range(0, self.population_size - 1, 2):
             child1, child2 = self.crossover(population_without_gen_operators[i],
@@ -397,7 +395,8 @@ class Launcher:
         """
         self.initialize_population()
 
-        while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
+        while self.best_fitness != (self.graph.number_of_edges - self.graph.number_of_vertices / 2) \
+                and self.generation_count != self.UPPER_BOUND:
             self.next_generation_darvin()
 
     def start_immune(self):
@@ -407,7 +406,8 @@ class Launcher:
          """
         self.initialize_population()
 
-        while self.best_fitness != 0 and self.generation_count != self.UPPER_BOUND:
+        while self.best_fitness != (self.graph.number_of_edges - self.graph.number_of_vertices / 2) \
+                and self.generation_count != self.UPPER_BOUND:
             self.next_generation_immune()
 
     def next_generation_immune(self):
@@ -488,7 +488,7 @@ def main():
     immune_title = "Иммунный алгоритм"
     ga_time = []
     immune_time = []
-    for number_of_vertex in tqdm(range(5, 31)):
+    for number_of_vertex in tqdm(range(20, 21)):
         graph = Graph(n=number_of_vertex)
         launcher = Launcher(graph=graph)
 
