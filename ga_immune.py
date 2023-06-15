@@ -250,12 +250,12 @@ class Launcher:
         :return: mutated_dna
         """
         check = uniform(0, 1)
+        position = randrange(1, dna.length)
         if check <= self.mutation_rate:
-            for position in range(len(dna.genes)):
-                if dna.genes[position] == 0:
-                    dna.genes[position] = 1
-                else:
-                    dna.genes[position] = 0
+            if dna.genes[position] == 0:
+                dna.genes[position] = 1
+            else:
+                dna.genes[position] = 0
         return dna
 
     def mutation2(self, dna):
@@ -318,9 +318,9 @@ class Launcher:
         Операция создания следующего поколения в генетическом алгоритме по модели Дарвина.
         :return: None
         """
-        population_without_gen_operators = self.roulette_wheel_selection()
+        population_without_gen_operators = self.tournament_selection()
         new_population = []
-        #random.shuffle(population_without_gen_operators)
+        # random.shuffle(population_without_gen_operators)
 
         for i in range(0, self.population_size - 1, 2):
             child1, child2 = self.crossover(population_without_gen_operators[i],
@@ -330,11 +330,16 @@ class Launcher:
         if len(new_population) < self.population_size:
             new_population.append(population_without_gen_operators[-1])
 
-        self._population = new_population
+        self._population.clear()
 
-        for dna in self._population:
-            dna = self.mutation2(dna)
+        for dna in new_population:
             dna.evaluate_fitness(self.graph)
+            mutated = self.mutation(dna)
+            mutated.evaluate_fitness(self.graph)
+            if dna.fitness < mutated.fitness:
+                self._population.append(dna)
+            else:
+                self._population.append(mutated)
 
         self.generation_count += 1
         self.avg_fitness = self.calculate_avg_fitness()
@@ -420,7 +425,7 @@ class Launcher:
 
         clones = self.population[:numb]
         for clone in clones:
-            clone = self.mutation2(clone)
+            clone = self.mutation(clone)
             clone.evaluate_fitness(self.graph)
 
         new_population = []
@@ -488,7 +493,7 @@ def main():
     immune_title = "Иммунный алгоритм"
     ga_time = []
     immune_time = []
-    for number_of_vertex in tqdm(range(20, 21)):
+    for number_of_vertex in tqdm(range(30, 31)):
         graph = Graph(n=number_of_vertex)
         launcher = Launcher(graph=graph)
 
