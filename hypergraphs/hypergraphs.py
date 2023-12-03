@@ -1,5 +1,6 @@
 import random
 import random as rd
+import numpy as np
 
 
 def check_adj(edge_1, edge_2):
@@ -10,6 +11,9 @@ def check_adj(edge_1, edge_2):
 
 
 class HyperGraph:
+    MAX_VERTEX_SET_COUNT = 3
+    MAX_EDGE_SET_COUNT = 3
+
     def __init__(self, n: int):
         self._max_number_edges = 0
         self._edges = []
@@ -20,6 +24,7 @@ class HyperGraph:
     def recreate(self, n):
         self.create_random_graph(n)
 
+    # TODO: Переделать
     def to_edges(self, dna):
         edges = []
         for index, gen in enumerate(dna.genes):
@@ -62,18 +67,23 @@ class HyperGraph:
     def create_random_graph(self, n: int):
         v = [i for i in range(n)]
         random.shuffle(v)
-        for _ in range(3):
+        self.vertices = list(map(list, np.array_split(v, self.MAX_VERTEX_SET_COUNT)))
 
-        self.vertices = [v[x:x + 3] for x in range(4)]
-        self.max_number_edges = (n / 3) ** 3
+        self.max_number_edges = int((n / self.MAX_VERTEX_SET_COUNT) ** 3)
         number_of_edges = rd.randint(2, self.max_number_edges)
 
-        for _ in range(number_of_edges):
+        current_number_of_edge = 0
+        while current_number_of_edge != number_of_edges:
             edge = []
             for part in self.vertices:
                 edge.append(rd.choice(part))
-            self.edges.append(edge)
+            if edge not in self.edges:
+                self.edges.append(edge)
+                current_number_of_edge += 1
 
 
 if __name__ == '__main__':
     hg = HyperGraph(9)
+    print(hg.number_of_edges)
+    print(hg.edges)
+    print(hg.vertices)
