@@ -5,13 +5,13 @@ import numpy as np
 import networkx as nx
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-
-from graphs import Graph
+import hypernetx as hnx
+from hypergraphs import HyperGraph
 
 
 class DNA:
     """
-        Класс, представляющий решение задачи нахождения наибольшего паросочетания.
+        Класс, представляющий решение задачи нахождения совершенных паросочетания.
         Решение представляется двоичной последовательностью длины n - количество ребер в исходной графе.
     """
     MAX_VALUE = 2147483647
@@ -31,18 +31,6 @@ class DNA:
     def length(self, value):
         if value is not None:
             self._length = value
-
-    def evaluate_fitness(self, graph):
-        fitness = 0
-        for index in range(len(self.genes)):
-            if self.genes[index] == 1:
-                for j in range(index + 1, len(self.genes)):
-                    if self.genes[j] == 1 and graph.edge_adj_matrix[index][j] == 1:
-                        self.fitness = self.MAX_VALUE
-                        return
-            else:
-                fitness += 1
-        self.fitness = fitness
 
     @property
     def genes(self):
@@ -69,6 +57,18 @@ class DNA:
     def fitness(self, value):
         if value is not None:
             self._fitness = value
+
+    def evaluate_fitness(self, hypergraph: HyperGraph):
+        fs = 0
+        for i_index in range(self.length):
+            if self.genes[i_index] == 1:
+                for j_index in range(i_index + 1, self.length):
+                    if self.genes[j_index] == 1 and hypergraph.check_intersection(i_index, j_index):
+                        self.fitness = self.MAX_VALUE
+                        return
+            else:
+                fs += 1
+        self.fitness = fs
 
     def __repr__(self):
         return "-".join(map(str, self.genes))
@@ -113,16 +113,16 @@ class Launcher:
     """
     UPPER_BOUND = 1000
 
-    def __init__(self, graph: Graph):
+    def __init__(self, hypergraph: HyperGraph):
         self._generation_count = None
-        self._graph = None
+        self._hypergraph = None
         self._population = []
 
         self._avg_fitness = None
         self._best_fitness = None
         self._fittest = None
 
-        self.graph = graph
+        self.hypergraph = hypergraph
         self.records = []
 
         self.population_size = 1000  # randrange(200, 500)
@@ -142,13 +142,13 @@ class Launcher:
             self._population = value
 
     @property
-    def graph(self):
-        return self._graph
+    def hypergraph(self):
+        return self._hypergraph
 
-    @graph.setter
-    def graph(self, value):
+    @hypergraph.setter
+    def hypergraph(self, value):
         if value is not None:
-            self._graph = value
+            self._hypergraph = value
 
     @property
     def best_fitness(self):
@@ -198,7 +198,7 @@ class Launcher:
                     self.fittest,
                     self.best_fitness,
                     self.avg_fitness,
-                    [self.graph.to_edges(dna) for dna in self.fittest]
+                    [self.hypergraph.to_edges(dna) for dna in self.fittest]
                 )
             )
 
@@ -210,9 +210,9 @@ class Launcher:
         self._population.clear()
         self.records.clear()
         for _ in range(self.population_size):
-            self._population.append(DNA(self.graph.number_of_edges))
+            self._population.append(DNA(self.hypergraph.number_of_edges))
         for dna in self._population:
-            dna.evaluate_fitness(self.graph)
+            dna.evaluate_fitness(self.hypergraph)
         self.generation_count = 1
         self.fittest, self.best_fitness = self.get_fittests()
         self.avg_fitness = self.calculate_avg_fitness()
@@ -333,9 +333,9 @@ class Launcher:
         self._population.clear()
 
         for dna in new_population:
-            dna.evaluate_fitness(self.graph)
+            dna.evaluate_fitness(self.hypergraph)
             mutated = self.mutation(dna)
-            mutated.evaluate_fitness(self.graph)
+            mutated.evaluate_fitness(self.hypergraph)
             if dna.fitness < mutated.fitness:
                 self._population.append(dna)
             else:
@@ -386,9 +386,9 @@ class Launcher:
         with open(path, 'w', encoding="UTF-8") as file:
             for record in self.records:
                 file.write(
-                    f"Номер поколения: {record.number_of_generationsgeneration_count},\n"
+                    f"Номер поколения: {record.number_of_generations},\n"
                     f"Наилучшие особи: {record.fittest},\n"
-                    f"Наибольшее паросочетание: {[record.graph.to_edges(variant) for variant in self.fittest]}\n"
+                    f"Наибольшее паросочетание: {[record.best_edges]}\n"
                     f"Наилучшая приспособленность: {record.best_fitness} \n"
                     f"Средняя приспособленность поколения: {record.avg_fitness}\n")
             file.write("*" * 50 + "\n")
@@ -400,50 +400,9 @@ class Launcher:
         """
         self.initialize_population()
 
-        while self.best_fitness != (self.graph.number_of_edges - self.graph.number_of_vertices / 2) \
+        while self.best_fitness != (self.hypergraph.number_of_vertices / self.hypergraph.MAX_VERTEX_SET_COUNT) \
                 and self.generation_count != self.UPPER_BOUND:
             self.next_generation_darvin()
-
-    def start_immune(self):
-        """
-         Функция старта иммунного алгоритма
-         :return: None
-         """
-        self.initialize_population()
-
-        while self.best_fitness != (self.graph.number_of_edges - self.graph.number_of_vertices / 2) \
-                and self.generation_count != self.UPPER_BOUND:
-            self.next_generation_immune()
-
-    def next_generation_immune(self):
-        """
-        Функция создания следующего поколения для иммунного алгоритма.
-        :return: None
-        """
-        numb = round(self.cloning_rate * self.population_size)
-        random.shuffle(self.population)
-
-        clones = self.population[:numb]
-        for clone in clones:
-            clone = self.mutation(clone)
-            clone.evaluate_fitness(self.graph)
-
-        new_population = []
-        for clone, parent in zip(clones, self.population[:numb]):
-            if clone.fitness <= parent.fitness:
-                new_population.append(clone)
-            else:
-                new_population.append(parent)
-
-        for i in self.population[numb:]:
-            new_population.append(i)
-
-        self._population = new_population
-
-        self.generation_count += 1
-        self.avg_fitness = self.calculate_avg_fitness()
-        self.fittest, self.best_fitness = self.get_fittests()
-        self.record_statistic()
 
     def save_graphic(self, title: str, path: str):
         """
@@ -465,21 +424,29 @@ class Launcher:
 
     def save_matching_graph(self, title: str, matching: list, path: str):
         """
-        Функция рисующая граф и наибольшее паросочетание
+        Функция рисующая граф и совершенные паросочетания
         :param matching: Ребра паросочетания
         :param title: Название
         :return:
         """
-        G = nx.Graph()
-        G.add_edges_from(self.graph.edges)
-        plt.clf()
-        edge_color_list = ["grey"] * len(G.edges)
-        for i, edge in enumerate(G.edges()):
-            if edge in matching or (edge[1], edge[0]) in matching:
-                edge_color_list[i] = 'red'
-        nx.draw_circular(G, with_labels=True, edge_color=edge_color_list)
+        HG = nx.Graph()
+        HG.add_nodes_from(self.hypergraph.vertices[0], bipartite=0)
+        HG.add_nodes_from(self.hypergraph.vertices[1], bipartite=1)
+        HG.add_nodes_from(self.hypergraph.vertices[2], bipartite=2)
+        HG.add_edges_from(list(map(tuple, self.hypergraph.edges)))
+        HB = hnx.Hypergraph.from_bipartite(HG)
+
+        # plt.clf()
+        plt.subplots(figsize=(8, 5))
+        hnx.draw(HB)
+        # edge_color_list = ["grey"] * len(HG.edges)
+        # for i, edge in enumerate(HG.edges()):
+        #     if edge in matching or (edge[1], edge[0]) in matching:
+        #         edge_color_list[i] = 'red'
+        #
+        # nx.draw_circular(HG, with_labels=True, edge_color=edge_color_list)
         plt.title(title)
-        plt.savefig(path)
+        # plt.savefig(path)
 
 
 def save(path: str):
@@ -490,12 +457,10 @@ def main():
     path_to_graphics = "../resources/graphics/"
     path_to_graphs = "../resources/graphs/"
     ga_title = "Генетический алгоритм"
-    immune_title = "Иммунный алгоритм"
     ga_time = []
-    immune_time = []
-    for number_of_vertex in tqdm(range(30, 31)):
-        graph = Graph(n=number_of_vertex)
-        launcher = Launcher(graph=graph)
+    for number_of_vertex in tqdm(range(6, 13, 3)):
+        hypergraph = HyperGraph(n=number_of_vertex)
+        launcher = Launcher(hypergraph=hypergraph)
 
         # измерение времени работы генетического алгоритма
         start = time.perf_counter()
@@ -504,43 +469,27 @@ def main():
         ga_time.append(end - start)
         # отображение графика и сохранение
         launcher.save_graphic(ga_title,
-                              path_to_graphics + "ga/max_avg_graphic_" + "vertex_" + str(number_of_vertex) + ".jpg")
+                              path_to_graphics + "ga_hypergraph/max_avg_graphic_" + "vertex_" + str(
+                                  number_of_vertex) + ".jpg")
 
         # Находим все лучшие решения и отображаем и сохраняем
-        bests = launcher.get_best_info()
-        if bests:
-            for best in bests:
-                for index, pair_edges in enumerate(best.best_edges):
-                    launcher.save_matching_graph(ga_title, pair_edges,
-                                                 path_to_graphs + f"ga/vertex_" + str(
-                                                     number_of_vertex) + f"_matching_{index}_" + ".jpg")
-        else:
-            print("NOT FOUND GEN " + str(number_of_vertex))
-
+        # bests = launcher.get_best_info()
+        # if bests:
+        #     for best in bests:
+        #         for index, pair_edges in enumerate(best.best_edges):
+        #             launcher.save_matching_graph(ga_title, pair_edges,
+        #                                          path_to_graphs + f"ga_hypergraph/vertex_" + str(
+        #                                              number_of_vertex) + f"_matching_{index}_" + ".jpg")
+        # else:
+        #     print("NOT FOUND GEN " + str(number_of_vertex))
+        launcher.to_file("../resources/ga_hypergraph.txt")
         # измерение времени работы иммунного алгоритма
         start = time.perf_counter()
-        launcher.start_immune()
         end = time.perf_counter()
-        immune_time.append(end - start)
-
-        launcher.save_graphic(immune_title,
-                              path_to_graphics + "immune/max_avg_graphic_" + "vertex_" + str(number_of_vertex) + ".jpg")
-
-        # Находим все лучшие решения и отображаем и сохраняем
-        bests = launcher.get_best_info()
-        if bests:
-            for best in bests:
-                for index, pair_edges in enumerate(best.best_edges):
-                    launcher.save_matching_graph(immune_title, pair_edges,
-                                                 path_to_graphs + f"immune/vertex_" + str(
-                                                     number_of_vertex) + f"_matching_{index}_" + ".jpg")
-        else:
-            print("NOT FOUND IMMUNE " + str(number_of_vertex))
 
     plt.clf()
     plt.title("График зависимости скорости работы от количества вершин")
     plt.plot(ga_time, color="red", label="GA")
-    plt.plot(immune_time, color="blue", label="Immune")
     plt.xlabel("Количество вершин")
     plt.ylabel("Время решения (с)")
     plt.legend(loc='lower left')
