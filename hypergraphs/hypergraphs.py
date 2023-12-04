@@ -49,13 +49,14 @@ class HyperGraph:
 
     @property
     def number_of_vertices(self):
-        return len(self._vertices)
+        return len(self.vertices_set)
 
     def __init__(self, n: int, vertices=None, edges=None):
         """
         Инициализация рандомного 3-дольного и 3-однородного гиперграфа
         :param n:
         """
+        self.vertices_set = None
         if edges is None:
             edges = []
         if vertices is None:
@@ -93,13 +94,13 @@ class HyperGraph:
         :return: None
         """
         v = [i for i in range(n)]
-
         # random.shuffle(v) # не нужно скорее всего
 
         self.vertices = list(map(list, np.array_split(v, self.MAX_VERTEX_SET_COUNT)))
+        self.vertices_set = set(v)
 
-        self.max_number_edges = int((n / self.MAX_VERTEX_SET_COUNT) ** self.MAX_VERTEX_SET_COUNT)
-        number_of_edges = rd.randint(2, self.max_number_edges)
+        self.max_number_edges = int((n // self.MAX_VERTEX_SET_COUNT) ** self.MAX_VERTEX_SET_COUNT)
+        number_of_edges = rd.randint(3, self.max_number_edges)
 
         # ручной выбор ребер
         # current_number_of_edge = 0
@@ -135,6 +136,16 @@ class HyperGraph:
         :return: Возвращает список вершин, которые есть в обоих ребрах.
         """
         return [value for value in self.edges[index_edge_1] if value in set(self.edges[index_edge_2])]
+
+    def check_all_nodes(self, genes):
+        edges = set()
+        for index, gen in enumerate(genes):
+            if gen == 1:
+                edges |= set(self.edges[index])
+
+        if len(self.vertices_set - edges) == 0:
+            return True
+        return False
 
 
 if __name__ == '__main__':

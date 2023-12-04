@@ -60,6 +60,9 @@ class DNA:
 
     def evaluate_fitness(self, hypergraph: HyperGraph):
         fs = 0
+        if not hypergraph.check_all_nodes(self.genes):
+            self.fitness = hypergraph.number_of_edges
+            return
         for i_index in range(self.length):
             if self.genes[i_index] == 1:
                 for j_index in range(i_index + 1, self.length):
@@ -125,7 +128,7 @@ class Launcher:
         self.hypergraph = hypergraph
         self.records = []
 
-        self.population_size = 1000  # randrange(200, 500)
+        self.population_size = 200  # randrange(200, 500)
         self.cloning_rate = 0.2
         self.crossing_over_rate = 0.9  # uniform(0.8, 0.95)
         self.mutation_rate = 0.4  # uniform(0.5, 1.0)
@@ -192,15 +195,20 @@ class Launcher:
         :return: None
         """
         if self.best_fitness != DNA.MAX_VALUE:
-            self.records.append(
-                Record(
-                    self.generation_count,
-                    self.fittest,
-                    self.best_fitness,
-                    self.avg_fitness,
-                    [self.hypergraph.to_edges(dna) for dna in self.fittest]
+            flag = False
+            for i in self.records:
+                if i.best_edges == [self.hypergraph.to_edges(dna) for dna in self.fittest]:
+                    flag = True
+            if not flag:
+                self.records.append(
+                    Record(
+                        self.generation_count,
+                        self.fittest,
+                        self.best_fitness,
+                        self.avg_fitness,
+                        [self.hypergraph.to_edges(dna) for dna in self.fittest]
+                    )
                 )
-            )
 
     def initialize_population(self):
         """
@@ -371,8 +379,6 @@ class Launcher:
         if self.records:
             min_value = min([record.best_fitness for record in self.records])
             bests_decisions = [record for record in self.records if record.best_fitness == min_value]
-            min_avg_value = min([decision.avg_fitness for decision in bests_decisions])
-            bests_decisions = [decision for decision in bests_decisions if decision.avg_fitness == min_avg_value]
             return bests_decisions
         else:
             return None
@@ -386,7 +392,8 @@ class Launcher:
         with open(path, 'w', encoding="UTF-8") as file:
             for record in self.records:
                 file.write(
-                    f"Номер поколения: {record.number_of_generations},\n"
+                    f"*" * 100 +
+                    f"\nНомер поколения: {record.number_of_generations},\n"
                     f"Наилучшие особи: {record.fittest},\n"
                     f"Наибольшее паросочетание: {[record.best_edges]}\n"
                     f"Наилучшая приспособленность: {record.best_fitness} \n"
@@ -399,9 +406,12 @@ class Launcher:
         :return: None
         """
         self.initialize_population()
-
-        while self.best_fitness != (self.hypergraph.number_of_vertices / self.hypergraph.MAX_VERTEX_SET_COUNT) \
-                and self.generation_count != self.UPPER_BOUND:
+        count = 0
+        while self.generation_count != self.UPPER_BOUND:
+            if self.best_fitness == (self.hypergraph.number_of_edges - (self.hypergraph.number_of_vertices // self.hypergraph.MAX_VERTEX_SET_COUNT)):
+                count += 1
+            if len(self.records) == 25 or count == 25:
+                break
             self.next_generation_darvin()
 
     def save_graphic(self, title: str, path: str):
@@ -453,39 +463,44 @@ def save(path: str):
     pass
 
 
-def main():
+def main(number_of_vertex):
     path_to_graphics = "../resources/graphics/"
     path_to_graphs = "../resources/graphs/"
     ga_title = "Генетический алгоритм"
     ga_time = []
-    for number_of_vertex in tqdm(range(6, 13, 3)):
-        hypergraph = HyperGraph(n=number_of_vertex)
-        launcher = Launcher(hypergraph=hypergraph)
 
-        # измерение времени работы генетического алгоритма
-        start = time.perf_counter()
-        launcher.start_darvin()
-        end = time.perf_counter()
-        ga_time.append(end - start)
-        # отображение графика и сохранение
-        launcher.save_graphic(ga_title,
-                              path_to_graphics + "ga_hypergraph/max_avg_graphic_" + "vertex_" + str(
-                                  number_of_vertex) + ".jpg")
+    hypergraph = HyperGraph(n=number_of_vertex)
+    launcher = Launcher(hypergraph=hypergraph)
 
-        # Находим все лучшие решения и отображаем и сохраняем
-        # bests = launcher.get_best_info()
-        # if bests:
-        #     for best in bests:
-        #         for index, pair_edges in enumerate(best.best_edges):
-        #             launcher.save_matching_graph(ga_title, pair_edges,
-        #                                          path_to_graphs + f"ga_hypergraph/vertex_" + str(
-        #                                              number_of_vertex) + f"_matching_{index}_" + ".jpg")
-        # else:
-        #     print("NOT FOUND GEN " + str(number_of_vertex))
-        launcher.to_file("../resources/ga_hypergraph.txt")
-        # измерение времени работы иммунного алгоритма
-        start = time.perf_counter()
-        end = time.perf_counter()
+    # измерение времени работы генетического алгоритма
+    start = time.perf_counter()
+    launcher.start_darvin()
+    end = time.perf_counter()
+    ga_time.append(end - start)
+    # отображение графика и сохранение
+    launcher.save_graphic(ga_title,
+                          path_to_graphics + "ga_hypergraph/max_avg_graphic_" + "vertex_" + str(
+                              number_of_vertex) + ".jpg")
+
+    # Находим все лучшие решения и отображаем и сохраняем
+    # bests = launcher.get_best_info()
+    # if bests:
+    #     for best in bests:
+    #         for index, pair_edges in enumerate(best.best_edges):
+    #             launcher.save_matching_graph(ga_title, pair_edges,
+    #                                          path_to_graphs + f"ga_hypergraph/vertex_" + str(
+    #                                              number_of_vertex) + f"_matching_{index}_" + ".jpg")
+    # else:
+    #     print("NOT FOUND GEN " + str(number_of_vertex))
+    launcher.to_file("../resources/ga_hypergraph.txt")
+
+    print("Vertices: ")
+    print(launcher.hypergraph.vertices)
+    print("Edges: ")
+    print(launcher.hypergraph.edges)
+    if launcher.get_best_info():
+        for i in launcher.get_best_info():
+            print(i)
 
     plt.clf()
     plt.title("График зависимости скорости работы от количества вершин")
@@ -497,4 +512,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(12)
