@@ -138,10 +138,10 @@ class HyperGraph:
         """
         return [value for value in self.edges[index_edge_1] if value in set(self.edges[index_edge_2])]
 
-    def find_all_intersections(self) -> list:
+    def find_all_intersections(self) -> list[list[int]]:
         """
         Метод для выявления всех пересечений
-        :return:
+        :return: список уникальных пересечений
         """
         intersection_list = []
         for i in range(len(self.edges) - 1):
@@ -151,7 +151,12 @@ class HyperGraph:
                     intersection_list.append(possible_intersection)
         return intersection_list
 
-    def remove_vertices(self, possible_articulation_point: list[int]):
+    def remove_vertices(self, possible_articulation_point: list[int]) -> (list[list[int]], list[int]):
+        """
+        Метод, который удаляет возможную точку сочленения
+        :param possible_articulation_point: возможная точка сочленения
+        :return: список ребер и список вершин без точек сочленения
+        """
         edges = copy.deepcopy(self.edges)
         vertices = list(self.vertices_set)
         for vertex in possible_articulation_point:
@@ -163,7 +168,11 @@ class HyperGraph:
 
         return edges, vertices
 
-    def find_articulation_points(self):
+    def find_articulation_points(self) -> list[list[int]]:
+        """
+        Метод, который ищет все точки сочленеия
+        :return: список множеств точек сочленения
+        """
 
         intersection_list = self.find_all_intersections()
         articulation_points = []
@@ -173,7 +182,12 @@ class HyperGraph:
                 articulation_points.append(possible_articulation_point)
         return articulation_points
 
-    def check_articulation_point(self, possible_articulation_point):
+    def check_articulation_point(self, possible_articulation_point: list[int]) -> bool:
+        """
+        Метод, проверяющий возможную точку сочленения на то, что это действительно точка сочленения
+        :param possible_articulation_point: возможная точка сочленения (список вершин)
+        :return: True либо False
+        """
         edges_without_possible_artic_point, vertices_without_artic_points = self.remove_vertices(
             possible_articulation_point)
 
@@ -191,7 +205,16 @@ class HyperGraph:
 
         return False
 
-    def dfs(self, vertex, visited, parent, adj_matrix, edge_dict):
+    def dfs(self, vertex: int, visited: dict, parent: int, adj_matrix: dict, edge_dict: dict) -> None:
+        """
+        Метод поиска в глубину, отмечает возможные пути из заданной вершины
+        :param vertex: заданная вершина, с которой начинается поиск
+        :param visited: словарь вершин, которые уже посетили
+        :param parent: вершина-родитель
+        :param adj_matrix: матрица инцидентности
+        :param edge_dict: словарь ребер
+        :return:
+        """
         visited[vertex] = True
 
         for adj_edge in adj_matrix[vertex]:
@@ -199,7 +222,13 @@ class HyperGraph:
                 if not visited[neighbor] and neighbor != parent:
                     self.dfs(neighbor, visited, vertex, adj_matrix, edge_dict)
 
-    def create_adj_matrix(self, vertices, edges_dict):
+    def create_adj_matrix(self, vertices: list, edges_dict: dict) -> dict:
+        """
+        Метод создающий из списка вершин и словаря ребер матрицу инцидентности, где строки - это вершины, а столбцы - это ребра
+        :param vertices: список вершин
+        :param edges_dict: словарь ребер
+        :return: словарь, где ключ - это вершина, а значение - это список инцидентных ребер
+        """
         adj_matrix = {i: [] for i in vertices}
         for i in vertices:
             for j in edges_dict.keys():
@@ -207,7 +236,12 @@ class HyperGraph:
                     adj_matrix[i].append(j)
         return adj_matrix
 
-    def check_all_nodes(self, genes):
+    def check_all_nodes(self, genes: list[int]) -> bool:
+        """
+        Метод проверяющий, что паросочетание - совершенное
+        :param genes: бинарная последовательность
+        :return: True или False
+        """
         edges = set()
         for index, gen in enumerate(genes):
             if gen == 1:
@@ -219,7 +253,7 @@ class HyperGraph:
 
 
 if __name__ == '__main__':
-    hg = HyperGraph(9)
+    hg = HyperGraph(12)
     print(f"Количество ребер: {hg.number_of_edges}")
     print(f"Ребра: {hg.edges}")
     print(f"Вершины (разбитые на доли): {hg.vertices}")
