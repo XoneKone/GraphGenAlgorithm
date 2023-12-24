@@ -388,7 +388,7 @@ class Launcher:
                 file.write(
                     f"Номер поколения: {record.number_of_generationsgeneration_count},\n"
                     f"Наилучшие особи: {record.fittest},\n"
-                    f"Наибольшее паросочетание: {[record.graph.to_edges(variant) for variant in self.fittest]}\n"
+                    f"Наибольшее паросочетание: {[record.hypergraph.to_edges(variant) for variant in self.fittest]}\n"
                     f"Наилучшая приспособленность: {record.best_fitness} \n"
                     f"Средняя приспособленность поколения: {record.avg_fitness}\n")
             file.write("*" * 50 + "\n")

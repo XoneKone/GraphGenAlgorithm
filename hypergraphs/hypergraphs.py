@@ -3,6 +3,9 @@ import random as rd
 import numpy as np
 import itertools as it
 import copy
+from math import factorial
+from matplotlib import pyplot as plt
+import hypernetx as hnx
 
 
 class HyperGraph:
@@ -52,7 +55,7 @@ class HyperGraph:
     def number_of_vertices(self):
         return len(self.vertices_set)
 
-    def __init__(self, n: int, vertices=None, edges=None):
+    def __init__(self, n: int, k: int = None, vertices=None, edges=None):
         """
         Инициализация рандомного 3-дольного и 3-однородного гиперграфа
         :param n:
@@ -67,7 +70,7 @@ class HyperGraph:
         self.edges = edges
         self.vertices = vertices
         self.edges_dict = {}
-        self.create_random_graph(n)
+        self.create_random_graph(n, k)
 
     def recreate(self, n) -> None:
         """
@@ -88,7 +91,7 @@ class HyperGraph:
                 edges.append(tuple(self.edges[index]))
         return edges
 
-    def create_random_graph(self, n: int) -> None:
+    def create_random_graph(self, n: int, k: int = None) -> None:
         """
         Метод для создания рандомного 3-дольного и 3-однородного гипреграфа
         :param n: количество вершин кратное 3
@@ -101,7 +104,11 @@ class HyperGraph:
         self.vertices_set = set(v)
 
         self.max_number_edges = int((n // self.MAX_VERTEX_SET_COUNT) ** self.MAX_VERTEX_SET_COUNT)
-        number_of_edges = rd.randint(3, self.max_number_edges)
+
+        if k is None:
+            number_of_edges = rd.randint(3, self.max_number_edges)
+        else:
+            number_of_edges = k
 
         # ручной выбор ребер
         # current_number_of_edge = 0
@@ -176,11 +183,11 @@ class HyperGraph:
 
         intersection_list = self.find_all_intersections()
         articulation_points = []
-
-        for possible_articulation_point in intersection_list:
-            if self.check_articulation_point(possible_articulation_point):
-                articulation_points.append(possible_articulation_point)
-        return articulation_points
+        if not self.check_articulation_point([]):
+            for possible_articulation_point in intersection_list:
+                if self.check_articulation_point(possible_articulation_point):
+                    articulation_points.append(possible_articulation_point)
+            return articulation_points
 
     def check_articulation_point(self, possible_articulation_point: list[int]) -> bool:
         """
@@ -238,7 +245,7 @@ class HyperGraph:
 
     def check_all_nodes(self, genes: list[int]) -> bool:
         """
-        Метод проверяющий, что паросочетание - совершенное
+        Метод проверяющий, что сочетание - совершенное
         :param genes: бинарная последовательность
         :return: True или False
         """
@@ -251,12 +258,94 @@ class HyperGraph:
             return True
         return False
 
+    def to_edges_dict(self, best_edges: list[tuple[int]]):
+        matching_dict = []
+        for matching in best_edges:
+            tmp = []
+            for edge in matching:
+                tmp.append([key for key in self.edges_dict if tuple(self.edges_dict[key]) == edge].pop())
+            matching_dict.append([tuple(tmp)])
+        return matching_dict
+
+    def bound(self):
+        return int(factorial(self.number_of_vertices // self.MAX_VERTEX_SET_COUNT) ** (self.MAX_VERTEX_SET_COUNT - 1))
+
+    def save_art_points_graph(self, title: str, art_point: list, path: str):
+        """
+        Функция рисующая граф и точки сочленения
+        :param path: путь до файла
+        :param art_point: Ребра паросочетания
+        :param title: Название
+        :return:
+        """
+        edges = self.edges_dict
+        plt.clf()
+        H = hnx.Hypergraph(edges)
+        colors = [
+            'red' if int(vertex) in art_point else 'black' for vertex in list(H.nodes)
+        ]
+        hnx.draw(H,
+                 with_edge_labels=False,
+                 edges_kwargs={
+                     'linewidths': 2
+                 },
+                 nodes_kwargs={
+                     'facecolors': colors
+                 },
+                 node_labels_kwargs={
+                     'fontsize': 24
+                 },
+                 layout_kwargs={
+                     'seed': 39
+                 })
+        plt.title(title)
+        plt.savefig(path)
+
+    def show_hypergraph(self, title: str):
+        """
+        Функция рисующая граф и точки сочленения
+        :param path: путь до файла
+        :param art_point: Ребра паросочетания
+        :param title: Название
+        :return:
+        """
+        edges = self.edges_dict
+        plt.clf()
+        H = hnx.Hypergraph(edges)
+        hnx.draw(H,
+                 with_edge_labels=False,
+                 edges_kwargs={
+                     'linewidths': 2
+                 },
+                 node_labels_kwargs={
+                     'fontsize': 24
+                 },
+                 layout_kwargs={
+                     'seed': 39
+                 })
+        plt.title(title)
+        plt.show()
+
 
 if __name__ == '__main__':
-    hg = HyperGraph(12)
+    hg = HyperGraph(9, 5)
     print(f"Количество ребер: {hg.number_of_edges}")
     print(f"Ребра: {hg.edges}")
     print(f"Вершины (разбитые на доли): {hg.vertices}")
     print(f"Словарь ребер: {hg.edges_dict}")
     print(f"Все возможные пересечения ребер: {hg.find_all_intersections()}")
-    print(f"Точки сочленения: {hg.find_articulation_points()}")
+    art_points = hg.find_articulation_points()
+    print(f"Точки сочленения: {art_points}")
+
+    path_to_graphs = "../resources/graphs/"
+    hg.show_hypergraph("Гиперграф")
+    if art_points:
+        for index, art_point in enumerate(art_points):
+            ptgp = path_to_graphs + f"hypergraph/vertex_" + str(
+                hg.number_of_vertices) + f"_atr_points_{index}_" + ".jpg"
+            hg.save_art_points_graph(title="Точки сочленения",
+                                     art_point=art_point,
+                                     path=ptgp)
+    else:
+        print("Гиперграф несвязный")
+
